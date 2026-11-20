@@ -1,0 +1,15 @@
+name = "cash-advance-local-travel"
+account_id = "98aa9b41c7867464e61d89b0d86cf59b"
+main = "cloudflare_worker.js"
+compatibility_date = "2024-11-01"
+
+[triggers]
+crons = ["* * * * *"] # 1-minute autonomous safety net
+
+[vars]
+LARK_APP_ID = "cli_aa75292d72b8df08"
+LARK_BASE_TOKEN = "ExBjbp1ORa1bSDst0NOlcJMOgRc"
+LARK_MAIN_TABLE_ID = "tbl37NnVUPwWL5tL"
+LARK_LOG_TABLE_ID = "tblpD8bOXcSWTudq"
+LARK_APPROVAL_CODE = "56DB2AA0-15B5-4AE9-954A-2BD485F267F8"
+# Note: LARK_APP_SECRET is provisioned securely via `npx wrangler secret put LARK_APP_SECRET`

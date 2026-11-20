@@ -1,0 +1,19 @@
+{
+  "name": "cash-advance-local-travel",
+  "version": "1.0.0",
+  "description": "Lark Cash Advance (Local Travel) Real-Time Approval Sync & SLA Watchdog",
+  "type": "module",
+  "main": "cloudflare_worker.js",
+  "scripts": {
+    "test": "node test_cloudflare_worker_logic.js"
+  },
+  "keywords": [
+    "lark",
+    "cloudflare-workers",
+    "sla",
+    "watchdog",
+    "cash-advance-local-travel"
+  ],
+  "author": "Mark Wilson Geronilla <markwilsongeronilla01@gmail.com>",
+  "license": "MIT"
+}
