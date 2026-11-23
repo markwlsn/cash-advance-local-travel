@@ -554,17 +554,89 @@ export function extractLinkedCashAdvanceRequestNos(rawVal) {
   return matches ? [...new Set(matches)] : [];
 }
 
-export function buildFiledLiquidationRequestSet(liqRecords = []) {
-  const filed = new Set();
+export function computeSubmittedForLiquidationMap(t1Records = [], liqRecords = []) {
+  const linkedStatuses = {};
+  const unlinkedActive = [];
+
   for (const r of liqRecords) {
     const f = (r && r.fields) || {};
     const st = extractText(f.Status);
-    if (!VALID_LIQUIDATION_STATUSES.has(st)) continue;
-    for (const rn of extractLinkedCashAdvanceRequestNos(f['Link Approved Cash advance'])) {
-      filed.add(rn);
+    const rns = extractLinkedCashAdvanceRequestNos(f['Link Approved Cash advance']);
+    if (rns.length > 0) {
+      for (const rn of rns) {
+        if (!linkedStatuses[rn]) linkedStatuses[rn] = [];
+        linkedStatuses[rn].push(st);
+      }
+    } else if (VALID_LIQUIDATION_STATUSES.has(st)) {
+      unlinkedActive.push(r);
     }
   }
-  return filed;
+
+  const getUserId = (f) => {
+    const u = normalizeUserField(f.Requester);
+    return u.length > 0 ? u[0].id : '';
+  };
+  const getNum = (v) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+  };
+  const getReqNo = (f) => extractUrlField(f['Request No.']).text || extractText(f['Request No.']);
+
+  const sortedT1 = [...t1Records].sort(
+    (a, b) => Number((a && a.fields && a.fields['Submitted at']) || 0) - Number((b && b.fields && b.fields['Submitted at']) || 0)
+  );
+  const usedLiq = new Set();
+  const result = new Map();
+
+  for (const r of sortedT1) {
+    const f = (r && r.fields) || {};
+    const caRn = getReqNo(f);
+    const caSt = extractText(f['Status of Cash Advance'] || f.Status);
+    let val = 'No Record';
+
+    if (caSt === 'Recalled') {
+      val = 'Recalled';
+    } else if (caSt === 'Rejected') {
+      val = 'Rejected';
+    } else {
+      const lsts = linkedStatuses[caRn] || [];
+      if (lsts.some((s) => VALID_LIQUIDATION_STATUSES.has(s))) {
+        val = 'Yes';
+      } else {
+        const caUid = getUserId(f);
+        const caAmt = getNum(f['Total Cash Advance Amount']);
+        const caSub = Number(f['Submitted at'] || 0);
+        let bestLr = null;
+        if (caSt === 'Approved' && caUid && caAmt > 0) {
+          for (const lr of unlinkedActive) {
+            const lf = (lr && lr.fields) || {};
+            const lrn = getReqNo(lf);
+            if (!lrn || usedLiq.has(lrn)) continue;
+            if (getUserId(lf) === caUid && Math.abs(getNum(lf['Total Cash Advance']) - caAmt) <= 1.0) {
+              const lSub = Number(lf['Submitted at'] || 0);
+              if (lSub >= caSub - 3 * 86400 * 1000) {
+                if (!bestLr || lSub < Number((bestLr.fields && bestLr.fields['Submitted at']) || 0)) {
+                  bestLr = lr;
+                }
+              }
+            }
+          }
+        }
+        if (bestLr) {
+          usedLiq.add(getReqNo(bestLr.fields || {}));
+          val = 'Yes';
+        } else if (lsts.includes('Rejected')) {
+          val = 'Rejected';
+        } else if (lsts.includes('Recalled')) {
+          val = 'Recalled';
+        } else {
+          val = 'No Record';
+        }
+      }
+    }
+    result.set(r.record_id, val);
+  }
+  return result;
 }
 
 export async function runAutoHealingCycle(env) {
@@ -591,13 +663,12 @@ export async function runAutoHealingCycle(env) {
         budget
       );
       if (liqComplete) {
-        const filedSet = buildFiledLiquidationRequestSet(liqRecords);
+        const targetMap = computeSubmittedForLiquidationMap(t1Records, liqRecords);
         const liqUpdates = [];
         for (const t1Rec of t1Records) {
           const t1Fields = (t1Rec && t1Rec.fields) || {};
-          const reqNoText = extractUrlField(t1Fields['Request No.']).text || extractText(t1Fields['Request No.']);
-          if (!reqNoText) continue;
-          const targetVal = filedSet.has(reqNoText) ? 'Yes' : 'No Record';
+          const targetVal = targetMap.get(t1Rec.record_id);
+          if (!targetVal) continue;
           const currentVal = extractText(t1Fields['Submitted for Liquidation']);
           if (currentVal !== targetVal) {
             liqUpdates.push({ record_id: t1Rec.record_id, fields: { 'Submitted for Liquidation': targetVal } });

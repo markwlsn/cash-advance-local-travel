@@ -18,7 +18,7 @@ import worker, {
   normalizeStageName,
   normalizeStageAction,
   extractLinkedCashAdvanceRequestNos,
-  buildFiledLiquidationRequestSet,
+  computeSubmittedForLiquidationMap,
   computeOverallStatus,
   extractStageMetrics,
   extractFinancialFields,
@@ -94,16 +94,27 @@ assertEq(
   ['202610090038'],
   'extractLinkedCashAdvanceRequestNos extracts 12-digit CA Request No.'
 );
-const filedSet = buildFiledLiquidationRequestSet([
-  { fields: { Status: 'Approved', 'Link Approved Cash advance': '202610090023-Enrico-CA' } },
-  { fields: { Status: 'Under Review', 'Link Approved Cash advance': '202610090038-Ian-CA' } },
-  { fields: { Status: 'Recalled', 'Link Approved Cash advance': '202610090099-Recalled-CA' } },
-  { fields: { Status: 'Rejected', 'Link Approved Cash advance': '202610090088-Rejected-CA' } },
-]);
-assertTrue(filedSet.has('202610090023'), 'Approved liquidation marks CA as filed (Yes)');
-assertTrue(filedSet.has('202610090038'), 'Under Review liquidation marks CA as filed (Yes)');
-assertTrue(!filedSet.has('202610090099'), 'Recalled liquidation does NOT mark CA as filed (No Record)');
-assertTrue(!filedSet.has('202610090088'), 'Rejected liquidation does NOT mark CA as filed (No Record)');
+const liqMap = computeSubmittedForLiquidationMap(
+  [
+    { record_id: 'r1', fields: { 'Request No.': { text: '202610090023' }, 'Status of Cash Advance': 'Approved', Requester: [{ id: 'ou_1' }], 'Total Cash Advance Amount': 5000, 'Submitted at': 1760000000000 } },
+    { record_id: 'r2', fields: { 'Request No.': { text: '202610090038' }, 'Status of Cash Advance': 'Approved', Requester: [{ id: 'ou_2' }], 'Total Cash Advance Amount': 8000, 'Submitted at': 1760000000000 } },
+    { record_id: 'r3', fields: { 'Request No.': { text: '202610090099' }, 'Status of Cash Advance': 'Recalled', Requester: [{ id: 'ou_3' }], 'Total Cash Advance Amount': 3000, 'Submitted at': 1760000000000 } },
+    { record_id: 'r4', fields: { 'Request No.': { text: '202610090088' }, 'Status of Cash Advance': 'Rejected', Requester: [{ id: 'ou_4' }], 'Total Cash Advance Amount': 4000, 'Submitted at': 1760000000000 } },
+    { record_id: 'r5', fields: { 'Request No.': { text: '202610090077' }, 'Status of Cash Advance': 'Approved', Requester: [{ id: 'ou_5' }], 'Total Cash Advance Amount': 9500, 'Submitted at': 1760000000000 } },
+    { record_id: 'r6', fields: { 'Request No.': { text: '202610090066' }, 'Status of Cash Advance': 'Approved', Requester: [{ id: 'ou_6' }], 'Total Cash Advance Amount': 12000, 'Submitted at': 1760000000000 } },
+  ],
+  [
+    { fields: { 'Request No.': { text: '202610200001' }, Status: 'Approved', 'Link Approved Cash advance': '202610090023-Enrico-CA' } },
+    { fields: { 'Request No.': { text: '202610200002' }, Status: 'Under Review', Requester: [{ id: 'ou_2' }], 'Total Cash Advance': 8000, 'Submitted at': 1760500000000 } },
+    { fields: { 'Request No.': { text: '202610200003' }, Status: 'Recalled', 'Link Approved Cash advance': '202610090077-RecalledLiq-CA' } },
+  ]
+);
+assertEq(liqMap.get('r1'), 'Yes', 'Explicitly linked Approved liquidation -> Yes');
+assertEq(liqMap.get('r2'), 'Yes', 'Unlinked exact fallback match (Requester + Amount + Date) -> Yes');
+assertEq(liqMap.get('r3'), 'Recalled', 'Recalled Cash Advance -> Recalled');
+assertEq(liqMap.get('r4'), 'Rejected', 'Rejected Cash Advance -> Rejected');
+assertEq(liqMap.get('r5'), 'Recalled', 'Approved CA whose only linked Liquidation was Recalled -> Recalled');
+assertEq(liqMap.get('r6'), 'No Record', 'Approved CA with no Liquidation -> No Record');
 assertEq(normalizeStageName('Direct Supervisor'), 'Direct Supervisor (if none, enter requester name)', 'Normalize Direct Supervisor');
 assertEq(normalizeStageName('Team Head'), 'Team Head (if none, enter requester name)', 'Normalize Team Head');
 assertEq(normalizeStageName('Booking of Hotel (No Flight)'), 'Booking of Hotel (No Flight)', 'Normalize Booking of Hotel (No Flight)');
