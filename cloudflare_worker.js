@@ -545,6 +545,28 @@ export function isSettledTerminalRow(t1Fields = {}, existingT2 = null) {
 // CORE RECONCILIATION & AUTO-HEALING ENGINE
 // -------------------------------------------------------------
 
+export const VALID_LIQUIDATION_STATUSES = new Set(['Approved', 'Under Review', 'Processing', 'Pending']);
+
+export function extractLinkedCashAdvanceRequestNos(rawVal) {
+  if (!rawVal) return [];
+  const txt = typeof rawVal === 'string' ? rawVal : JSON.stringify(rawVal);
+  const matches = txt.match(/\b20\d{10}\b/g);
+  return matches ? [...new Set(matches)] : [];
+}
+
+export function buildFiledLiquidationRequestSet(liqRecords = []) {
+  const filed = new Set();
+  for (const r of liqRecords) {
+    const f = (r && r.fields) || {};
+    const st = extractText(f.Status);
+    if (!VALID_LIQUIDATION_STATUSES.has(st)) continue;
+    for (const rn of extractLinkedCashAdvanceRequestNos(f['Link Approved Cash advance'])) {
+      filed.add(rn);
+    }
+  }
+  return filed;
+}
+
 export async function runAutoHealingCycle(env) {
   const budget = { used: 0, limit: MAX_SUBREQUESTS };
   const token = await getTenantAccessToken(env, budget);
@@ -557,6 +579,52 @@ export async function runAutoHealingCycle(env) {
 
   // 2. Fetch Table 2 records (paginated, page_size=500)
   const { records: t2Records, complete: t2Complete } = await fetchAllTableRecords(token, baseToken, logTableId, budget);
+
+  // 2b. Cross-base sync: update Table 1 'Submitted for Liquidation' (Yes / No Record) from Liquidation (Local Travel)
+  let liqSyncedCount = 0;
+  if (env.LARK_LIQ_BASE_TOKEN && env.LARK_LIQ_TABLE1_ID && budget.used + 2 <= budget.limit) {
+    try {
+      const { records: liqRecords, complete: liqComplete } = await fetchAllTableRecords(
+        token,
+        env.LARK_LIQ_BASE_TOKEN,
+        env.LARK_LIQ_TABLE1_ID,
+        budget
+      );
+      if (liqComplete) {
+        const filedSet = buildFiledLiquidationRequestSet(liqRecords);
+        const liqUpdates = [];
+        for (const t1Rec of t1Records) {
+          const t1Fields = (t1Rec && t1Rec.fields) || {};
+          const reqNoText = extractUrlField(t1Fields['Request No.']).text || extractText(t1Fields['Request No.']);
+          if (!reqNoText) continue;
+          const targetVal = filedSet.has(reqNoText) ? 'Yes' : 'No Record';
+          const currentVal = extractText(t1Fields['Submitted for Liquidation']);
+          if (currentVal !== targetVal) {
+            liqUpdates.push({ record_id: t1Rec.record_id, fields: { 'Submitted for Liquidation': targetVal } });
+          }
+        }
+        for (let i = 0; i < liqUpdates.length && budget.used < budget.limit; i += 100) {
+          budget.used++;
+          const batchRes = await fetch(
+            `https://open.larksuite.com/open-apis/bitable/v1/apps/${baseToken}/tables/${mainTableId}/records/batch_update`,
+            {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' },
+              body: JSON.stringify({ records: liqUpdates.slice(i, i + 100) }),
+            }
+          );
+          const batchJson = await batchRes.json().catch(() => ({}));
+          if (batchJson.code === 0) {
+            liqSyncedCount += Math.min(100, liqUpdates.length - i);
+          } else {
+            console.error(`[Liquidation Cross-Sync Error] ${batchJson.code}: ${batchJson.msg}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Liquidation Cross-Sync Error]', e);
+    }
+  }
 
   const t2MapByCode = {};
   for (const r of t2Records) {

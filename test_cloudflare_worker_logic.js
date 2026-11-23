@@ -17,6 +17,8 @@ import worker, {
   formatDuration,
   normalizeStageName,
   normalizeStageAction,
+  extractLinkedCashAdvanceRequestNos,
+  buildFiledLiquidationRequestSet,
   computeOverallStatus,
   extractStageMetrics,
   extractFinancialFields,
@@ -85,6 +87,23 @@ assertEq(normalizeStageAction('DONE'), 'APPROVED', 'normalizeStageAction maps DO
 assertEq(normalizeStageAction('AUTO-PASSED'), 'APPROVED', 'normalizeStageAction maps AUTO-PASSED to APPROVED');
 assertEq(normalizeStageAction('REJECTED'), 'REJECTED', 'normalizeStageAction keeps REJECTED');
 assertEq(normalizeStageAction('CANCELED'), 'REJECTED', 'normalizeStageAction maps CANCELED to REJECTED');
+
+// 5b. Cross-Base Liquidation Matching
+assertEq(
+  extractLinkedCashAdvanceRequestNos('202610090038-Ian Mojica-Cash Advance Form - Travelling Expenses (Local)-2026-10-09'),
+  ['202610090038'],
+  'extractLinkedCashAdvanceRequestNos extracts 12-digit CA Request No.'
+);
+const filedSet = buildFiledLiquidationRequestSet([
+  { fields: { Status: 'Approved', 'Link Approved Cash advance': '202610090023-Enrico-CA' } },
+  { fields: { Status: 'Under Review', 'Link Approved Cash advance': '202610090038-Ian-CA' } },
+  { fields: { Status: 'Recalled', 'Link Approved Cash advance': '202610090099-Recalled-CA' } },
+  { fields: { Status: 'Rejected', 'Link Approved Cash advance': '202610090088-Rejected-CA' } },
+]);
+assertTrue(filedSet.has('202610090023'), 'Approved liquidation marks CA as filed (Yes)');
+assertTrue(filedSet.has('202610090038'), 'Under Review liquidation marks CA as filed (Yes)');
+assertTrue(!filedSet.has('202610090099'), 'Recalled liquidation does NOT mark CA as filed (No Record)');
+assertTrue(!filedSet.has('202610090088'), 'Rejected liquidation does NOT mark CA as filed (No Record)');
 assertEq(normalizeStageName('Direct Supervisor'), 'Direct Supervisor (if none, enter requester name)', 'Normalize Direct Supervisor');
 assertEq(normalizeStageName('Team Head'), 'Team Head (if none, enter requester name)', 'Normalize Team Head');
 assertEq(normalizeStageName('Booking of Hotel (No Flight)'), 'Booking of Hotel (No Flight)', 'Normalize Booking of Hotel (No Flight)');
