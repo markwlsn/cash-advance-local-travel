@@ -16,6 +16,7 @@ import worker, {
   formatTimestamp,
   formatDuration,
   normalizeStageName,
+  normalizeStageAction,
   computeOverallStatus,
   extractStageMetrics,
   extractFinancialFields,
@@ -77,7 +78,13 @@ assertEq(formatDuration(1000, 31000), '< 1 min', 'formatDuration < 1 min');
 assertEq(formatDuration(0, 120000), '', 'formatDuration zero start');
 assertEq(formatDuration(1000, 601000), '10 min', 'formatDuration minutes');
 
-// 5. Stage Name Normalization
+// 5. Stage Name & Action Normalization
+assertEq(normalizeStageAction('PENDING'), 'PENDING', 'normalizeStageAction keeps PENDING');
+assertEq(normalizeStageAction('APPROVED'), 'APPROVED', 'normalizeStageAction keeps APPROVED');
+assertEq(normalizeStageAction('DONE'), 'APPROVED', 'normalizeStageAction maps DONE to APPROVED');
+assertEq(normalizeStageAction('AUTO-PASSED'), 'APPROVED', 'normalizeStageAction maps AUTO-PASSED to APPROVED');
+assertEq(normalizeStageAction('REJECTED'), 'REJECTED', 'normalizeStageAction keeps REJECTED');
+assertEq(normalizeStageAction('CANCELED'), 'REJECTED', 'normalizeStageAction maps CANCELED to REJECTED');
 assertEq(normalizeStageName('Direct Supervisor'), 'Direct Supervisor (if none, enter requester name)', 'Normalize Direct Supervisor');
 assertEq(normalizeStageName('Team Head'), 'Team Head (if none, enter requester name)', 'Normalize Team Head');
 assertEq(normalizeStageName('Booking of Hotel (No Flight)'), 'Booking of Hotel (No Flight)', 'Normalize Booking of Hotel (No Flight)');

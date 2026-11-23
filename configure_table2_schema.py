@@ -155,16 +155,7 @@ KNOWN_STAGE_FIELD_IDS = {
 ACTION_OPTIONS = [
     {"name": "PENDING", "color": 0},
     {"name": "APPROVED", "color": 1},
-    {"name": "COMPLETED", "color": 2},
-    {"name": "RESOLVED", "color": 3},
-    {"name": "NOT APPLICABLE", "color": 4},
-    {"name": "AUTO-PASSED", "color": 5},
     {"name": "REJECTED", "color": 6},
-    {"name": "RECALLED", "color": 7},
-    {"name": "CANCELLED", "color": 8},
-    {"name": "DONE", "color": 9},
-    {"name": "TRANSFERRED", "color": 10},
-    {"name": "INVALID_STATUS", "color": 11},
 ]
 
 OVERALL_STATUS_OPTIONS = [

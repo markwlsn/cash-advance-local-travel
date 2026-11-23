@@ -316,6 +316,16 @@ export function computeOverallStatus(instStatus, stageFields = {}) {
   return 'Phase 1: Line & Dept Review';
 }
 
+export function normalizeStageAction(rawStatus) {
+  if (!rawStatus || typeof rawStatus !== 'string') return '';
+  const s = rawStatus.trim().toUpperCase();
+  if (!s) return '';
+  if (s === 'PENDING') return 'PENDING';
+  if (['REJECTED', 'CANCELED', 'CANCELLED', 'RECALLED', 'DELETED'].includes(s)) return 'REJECTED';
+  if (['APPROVED', 'DONE', 'COMPLETED', 'RESOLVED', 'AUTO-PASSED', 'TRANSFERRED'].includes(s)) return 'APPROVED';
+  return '';
+}
+
 export function extractStageMetrics(instanceData) {
   const metrics = {};
   if (!instanceData || typeof instanceData !== 'object') return metrics;
@@ -361,7 +371,7 @@ export function extractStageMetrics(instanceData) {
     const openId = latestTask.open_id || latestTask.user_id;
     const startMs = latestTask.start_time;
     const endMs = latestTask.end_time;
-    const action = latestTask.status;
+    const action = normalizeStageAction(latestTask.status);
 
     if (openId) {
       metrics[`${stage} Approver`] = [{ id: openId }];
