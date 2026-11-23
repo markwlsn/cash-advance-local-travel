@@ -182,6 +182,9 @@ OVERALL_STATUS_OPTIONS = [
 ]
 
 
+DEFAULT_SLA_WORKING_DAYS = 10
+
+
 def build_duration_formula(table_id: str, start_fid: str, end_fid: str) -> str:
     return (
         f"IF(OR(ISBLANK(bitable::$table[{table_id}].$field[{start_fid}]),"
@@ -191,6 +194,18 @@ def build_duration_formula(table_id: str, start_fid: str, end_fid: str) -> str:
         f'bitable::$table[{table_id}].$field[{end_fid}],"d")&" day "&'
         f"TEXT(bitable::$table[{table_id}].$field[{end_fid}]-"
         f'bitable::$table[{table_id}].$field[{start_fid}],"hh:mm:ss"))'
+    )
+
+
+def build_sla_status_formula(
+    table_id: str, start_fid: str, end_fid: str, sla_days: int = DEFAULT_SLA_WORKING_DAYS
+) -> str:
+    return (
+        f"IF(OR(ISBLANK(bitable::$table[{table_id}].$field[{start_fid}]),"
+        f"ISBLANK(bitable::$table[{table_id}].$field[{end_fid}]),"
+        f"bitable::$table[{table_id}].$field[{end_fid}]<bitable::$table[{table_id}].$field[{start_fid}]),"
+        f'"",IF(NETWORKDAYS(bitable::$table[{table_id}].$field[{start_fid}],'
+        f'bitable::$table[{table_id}].$field[{end_fid}])-1<={sla_days},"Within SLA","Over SLA"))'
     )
 
 
@@ -448,6 +463,31 @@ def main() -> int:
             print(f"    -> {col_name:<58} ({fid}) -> {desc:<21}: {status}")
             if not dry_run:
                 time.sleep(0.15)
+
+        # Stage <Stage> Status (Type 20 SLA Formula: Within SLA / Over SLA)
+        status_col_name = f"{stage} Status"
+        sla_formula = build_sla_status_formula(LOG_TABLE_ID, start_fid, end_fid, DEFAULT_SLA_WORKING_DAYS)
+        status_payload = {
+            "field_name": status_col_name,
+            "type": 20,
+            "property": {"formula_expression": sla_formula},
+        }
+        existing_status = fields_by_name.get(status_col_name)
+        if existing_status:
+            sfid = existing_status["field_id"]
+            res = update_field(token, LOG_TABLE_ID, sfid, status_payload, dry_run=dry_run)
+            action_tag = sfid
+        else:
+            res = create_field(token, LOG_TABLE_ID, status_payload, dry_run=dry_run)
+            action_tag = res.get("data", {}).get("field", {}).get("field_id", "CREATE")
+        if res.get("code") in [0, 1254606]:
+            status = "DRY-RUN OK" if dry_run else f"OK ({action_tag})"
+        else:
+            status = f"Error {res.get('code')}: {res.get('msg')}"
+            errors.append(f"{status_col_name} ({action_tag}): {status}")
+        print(f"    -> {status_col_name:<58} ({action_tag}) -> {'Type 20 (SLA Formula)':<21}: {status}")
+        if not dry_run:
+            time.sleep(0.15)
 
     print("\n" + "=" * 80)
     if errors:

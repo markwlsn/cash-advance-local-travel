@@ -12,7 +12,7 @@ Production-grade two-tier serverless architecture synchronizing **Lark Approval 
 | :--- | :--- | :--- |
 | **Lark Base Token** | `ExBjbp1ORa1bSDst0NOlcJMOgRc` | `Cash Advance Form - Travelling Expenses (Local)` |
 | **Table 1 ID (Master)** | `tbl37NnVUPwWL5tL` | Native Approval-synced master table (33 fields + auto-healed `Vendor Bill No.` & `Check No.`) |
-| **Table 2 ID (Step Log)** | `tblpD8bOXcSWTudq` | `Step Approver Log` (View `vewr6Pmy7e`, 52 standardized native fields, 9 stages) |
+| **Table 2 ID (Step Log)** | `tblpD8bOXcSWTudq` | `Step Approver Log` (View `vewr6Pmy7e`, 61 standardized native fields, 9 stages × 6 cols incl. SLA `Status`) |
 | **Approval Definition Code** | `56DB2AA0-15B5-4AE9-954A-2BD485F267F8` | `Cash Advance Form - Travelling Expenses (Local)` |
 | **Dedicated Bot App ID** | `cli_aa75292d72b8df08` | `Cash Advance LT Bot` |
 | **Cloudflare Worker** | `cash-advance-local-travel` | `https://cash-advance-local-travel.markwlsn.workers.dev` (Account `98aa9b41c7867464e61d89b0d86cf59b`) |
